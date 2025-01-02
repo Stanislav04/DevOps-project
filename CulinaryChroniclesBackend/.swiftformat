@@ -1,0 +1,2 @@
+--swiftversion 5.5
+--disable elseOnSameLine, wrapMultilineStatementBraces, trailingCommas
