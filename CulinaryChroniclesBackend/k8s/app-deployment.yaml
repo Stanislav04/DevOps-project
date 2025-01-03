@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    app: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/stanislav04/culinary-chronicles-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: LOG_LEVEL
+              value: debug
+            - name: DATABASE_HOST
+              value: db
+            - name: DATABASE_NAME
+              value: vapor_database
+            - name: DATABASE_USERNAME
+              value: vapor_username
+            - name: DATABASE_PASSWORD
+              value: vapor_password
+      imagePullSecrets:
+        - name: regcred
+      initContainers:
+        - name: wait-for-db
+          image: busybox
+          command:
+            [
+              "sh",
+              "-c",
+              "until nc -z db-service 3306; do echo waiting for db; sleep 2; done;",
+            ]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: migrate
+  labels:
+    app: migrate
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: migrate
+  template:
+    metadata:
+      labels:
+        app: migrate
+    spec:
+      containers:
+        - name: migrate
+          image: culinary-chronicles-backend:latest
+          env:
+            - name: LOG_LEVEL
+              value: debug
+            - name: DATABASE_HOST
+              value: db
+            - name: DATABASE_NAME
+              value: vapor_database
+            - name: DATABASE_USERNAME
+              value: vapor_username
+            - name: DATABASE_PASSWORD
+              value: vapor_password
+          command: ["migrate", "--yes"]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: revert
+  labels:
+    app: revert
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: revert
+  template:
+    metadata:
+      labels:
+        app: revert
+    spec:
+      containers:
+        - name: revert
+          image: culinary-chronicles-backend:latest
+          env:
+            - name: LOG_LEVEL
+              value: debug
+            - name: DATABASE_HOST
+              value: db
+            - name: DATABASE_NAME
+              value: vapor_database
+            - name: DATABASE_USERNAME
+              value: vapor_username
+            - name: DATABASE_PASSWORD
+              value: vapor_password
+          command: ["migrate", "--revert", "--yes"]
