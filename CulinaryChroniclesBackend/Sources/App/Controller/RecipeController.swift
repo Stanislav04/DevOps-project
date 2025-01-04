@@ -29,7 +29,7 @@ struct RecipeController: RouteCollection {
 
         let recipeData: CreateRecipeDto
         do {
-//            try CreateRecipeDto.validate(content: request)
+           try CreateRecipeDto.validate(content: request)
             recipeData = try request.content.decode(CreateRecipeDto.self)
         } catch {
             logger.info("Tried to create recipe with invalid data!")

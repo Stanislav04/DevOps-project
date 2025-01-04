@@ -15,11 +15,15 @@ public func configure(_ app: Application) async throws {
     // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
     if app.environment != .testing {
+        guard let databaseUsername = Environment.get("ADMIN_USERNAME", logWith: setupLogger),
+              let databasePassword = Environment.get("ADMIN_PASSWORD", logWith: setupLogger) else {
+            throw MissingCredentialsError()
+        }
         app.databases.use(DatabaseConfigurationFactory.mysql(
             hostname: Environment.get("DATABASE_HOST", logWith: setupLogger) ?? "localhost",
             port: Environment.get("DATABASE_PORT", logWith: setupLogger).flatMap(Int.init) ?? MySQLConfiguration.ianaPortNumber,
-            username: Environment.get("DATABASE_USERNAME", logWith: setupLogger) ?? "vapor_username",
-            password: Environment.get("DATABASE_PASSWORD", logWith: setupLogger) ?? "vapor_password",
+            username: databaseUsername,
+            password: databasePassword,
             database: Environment.get("DATABASE_NAME", logWith: setupLogger) ?? "vapor_database",
             tlsConfiguration: .makePreSharedKeyConfiguration()
         ), as: .mysql)
@@ -36,6 +40,8 @@ public func configure(_ app: Application) async throws {
     // register routes
     try routes(app)
 }
+
+private struct MissingCredentialsError: Error {}
 
 extension Environment {
     static func get(_ key: String, logWith logger: Logger) -> String? {

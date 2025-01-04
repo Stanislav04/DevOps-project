@@ -1,0 +1,102 @@
+name: Pull Request
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Manually triggered from {0}', github.ref_name) || github.event.pull_request.title }}
+on:
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  cancel-in-progress: true
+  group: "build-${{ github.event.pull_request.number || github.ref }}"
+
+jobs:
+  lint:
+    name: Run SwiftLint
+    runs-on: ubuntu-latest
+    steps:
+    - name: "Checkout repository"
+      uses: actions/checkout@v4
+    - name: "Run SwiftLint"
+      uses: norio-nomura/action-swiftlint@3.2.1
+      env:
+        WORKING_DIRECTORY: CulinaryChroniclesBackend
+
+  static_code_analysis:
+    name: Run Snyk Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: "Checkout repository"
+      uses: actions/checkout@v4
+    - name: "Install Snyk"
+      run: npm install -g snyk
+    - name: "Authenticate Snyk"
+      run: snyk auth ${{ secrets.SNYK_TOKEN }}
+    - name: "Run Snyk"
+      run: cd CulinaryChroniclesBackend/Sources && snyk code test
+
+  unit_tests:
+    name: Run Unit Tests
+    runs-on: macOS-latest
+    steps:
+    - name: "Checkout repository"
+      uses: actions/checkout@v4
+    - name: "Run Unit Tests"
+      run: cd CulinaryChroniclesBackend && swift test
+
+  build_image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - static_code_analysis
+      - unit_tests
+    steps:
+    - name: "Checkout repository"
+      uses: actions/checkout@v4
+    - name: "Build Docker Image"
+      run: docker build -t ghcr.io/${{ secrets.DOCKER_USERNAME }}/culinary-chronicles-backend:${{ github.sha }} CulinaryChroniclesBackend
+    - name: "Login to GitHub Container Registry"
+      run: docker login ghcr.io -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+    - name: "Push Docker Image"
+      run: docker push ghcr.io/${{ secrets.DOCKER_USERNAME }}/culinary-chronicles-backend:${{ github.sha }}
+    - name: "Logout from GitHub Container Registry"
+      run: docker logout
+
+  image_vulnerability_check:
+    name: Run Trivy Vulnerability Scan
+    runs-on: ubuntu-latest
+    needs: build_image
+    steps:
+    - name: "Install Trivy"
+      run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+    - name: "Login to GitHub Container Registry"
+      run: docker login ghcr.io -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+    - name: "Run Trivy"
+      run: trivy image ghcr.io/${{ secrets.DOCKER_USERNAME }}/culinary-chronicles-backend:${{ github.sha }}
+    - name: "Logout from GitHub Container Registry"
+      run: docker logout
+
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: image_vulnerability_check
+    steps:
+    - name: "Install Minikube & Kubernetes"
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl
+        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        sudo install minikube-linux-amd64 /usr/local/bin/minikube
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        sudo install kubectl /usr/local/bin/kubectl
+    - name: "Start Minikube"
+      run: minikube start --driver=docker
+    - name: "Checkout repository"
+      uses: actions/checkout@v4
+    - name: "Create Kubernetes credentials"
+      run: kubectl create secret docker-registry regcred --docker-server=ghcr.io --docker-username=${{ secrets.DOCKER_USERNAME }} --docker-password=${{ secrets.DOCKER_PASSWORD }} --docker-email=${{ secrets.DOCKER_EMAIL }}
+    - name: "Deploy to Kubernetes"
+      run: kubectl apply -f CulinaryChroniclesBackend/k8s
+    - name: "Wait app to be running"
+      run: |
+        sleep 10 # Wait for the pods to be created
+        kubectl wait --for=condition=ready pod -l app=app --timeout=120s
