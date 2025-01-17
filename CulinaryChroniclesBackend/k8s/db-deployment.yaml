@@ -18,12 +18,21 @@ spec:
           ports:
             - containerPort: 3306
           env:
-            - name: MYSQL_USER
-              value: vapor_username
-            - name: MYSQL_PASSWORD
-              value: vapor_password
-            - name: MYSQL_DATABASE
-              value: vapor_database
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_NAME
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_USERNAME
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_PASSWORD
             - name: MYSQL_RANDOM_ROOT_PASSWORD
               value: "yes"
           volumeMounts:
