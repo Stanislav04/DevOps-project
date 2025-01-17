@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/stanislav04/culinary-chronicles-backend:latest
+          image: ${IMAGE}
           ports:
             - containerPort: 8080
           env:
@@ -25,11 +25,20 @@ spec:
             - name: DATABASE_HOST
               value: db
             - name: DATABASE_NAME
-              value: vapor_database
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_NAME
             - name: DATABASE_USERNAME
-              value: vapor_username
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_USERNAME
             - name: DATABASE_PASSWORD
-              value: vapor_password
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_PASSWORD
       imagePullSecrets:
         - name: regcred
       initContainers:
@@ -61,18 +70,27 @@ spec:
     spec:
       containers:
         - name: migrate
-          image: culinary-chronicles-backend:latest
+          image: ${IMAGE}
           env:
             - name: LOG_LEVEL
               value: debug
             - name: DATABASE_HOST
               value: db
             - name: DATABASE_NAME
-              value: vapor_database
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_NAME
             - name: DATABASE_USERNAME
-              value: vapor_username
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_USERNAME
             - name: DATABASE_PASSWORD
-              value: vapor_password
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_PASSWORD
           command: ["migrate", "--yes"]
 
 ---
@@ -94,16 +112,25 @@ spec:
     spec:
       containers:
         - name: revert
-          image: culinary-chronicles-backend:latest
+          image: ${IMAGE}
           env:
             - name: LOG_LEVEL
               value: debug
             - name: DATABASE_HOST
               value: db
             - name: DATABASE_NAME
-              value: vapor_database
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_NAME
             - name: DATABASE_USERNAME
-              value: vapor_username
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_USERNAME
             - name: DATABASE_PASSWORD
-              value: vapor_password
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DATABASE_PASSWORD
           command: ["migrate", "--revert", "--yes"]

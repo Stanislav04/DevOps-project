@@ -92,11 +92,16 @@ jobs:
       run: minikube start --driver=docker
     - name: "Checkout repository"
       uses: actions/checkout@v4
-    - name: "Create Kubernetes credentials"
-      run: kubectl create secret docker-registry regcred --docker-server=ghcr.io --docker-username=${{ secrets.DOCKER_USERNAME }} --docker-password=${{ secrets.DOCKER_PASSWORD }} --docker-email=${{ secrets.DOCKER_EMAIL }}
+    - name: "Create Kubernetes secrets"
+      run: |
+        kubectl create secret docker-registry regcred --docker-server=ghcr.io --docker-username=${{ secrets.DOCKER_USERNAME }} --docker-password=${{ secrets.DOCKER_PASSWORD }} --docker-email=${{ secrets.DOCKER_EMAIL }}
+        kubectl create secret generic db-credentials --from-literal=DATABASE_NAME=${{ secrets.DATABASE_NAME }} --from-literal=DATABASE_USERNAME=${{ secrets.DATABASE_USERNAME }} --from-literal=DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+        export IMAGE=ghcr.io/${{ secrets.DOCKER_USERNAME }}/culinary-chronicles-backend:${{ github.sha }}
+        envsubst < CulinaryChroniclesBackend/k8s/app-deployment.yaml > CulinaryChroniclesBackend/k8s/deployment.yaml
+        mv CulinaryChroniclesBackend/k8s/deployment.yaml CulinaryChroniclesBackend/k8s/app-deployment.yaml
     - name: "Deploy to Kubernetes"
       run: kubectl apply -f CulinaryChroniclesBackend/k8s
     - name: "Wait app to be running"
       run: |
         sleep 10 # Wait for the pods to be created
-        kubectl wait --for=condition=ready pod -l app=app --timeout=120s
+        kubectl wait --for=condition=ready pod -l app=app --timeout=240s
